@@ -17,10 +17,10 @@ library(spgwr)
 
 #Lê os dados
 dados<-read.csv("Data\\Dados.csv")
-dados$MUNICDV<-as.numeric(dados$codigo_ibg)
+dados$CD_GEOCMU<-as.numeric(dados$codigo_ibg)
 
 #Carrega o objeto SpatialPolygon
-mun <- readOGR(dsn = "Malhas", "NORTE_MUN_region", verbose=FALSE)
+mun <- readOGR(dsn = "Malhas", "DetermEcoE", verbose=FALSE)
 uf <- readOGR(dsn = "Malhas", "NORTE_UF_region", verbose=FALSE)
 
 #Cria uma variável ID para o georeferenciamento
@@ -30,7 +30,8 @@ mun@data$id <- rownames(mun@data)
 mun <- spTransform(mun, CRS("+proj=longlat +datum=WGS84"))
 
 #Create a SpatialPolygonDataFrame
-mun.join<-merge(mun,dados,by="MUNICDV",all=F)
+mun.join<-merge(mun,dados,by="CD_GEOCMU",all=F)
+mun.join@data$id <- rownames(mun.join@data)
 #######################################################################################
 #################################### Full Model        ################################
 #######################################################################################
@@ -45,18 +46,33 @@ ggwrG <- ggwr(Beta ~ Área_prop + Orient_tecn + Queimada + Agricultura_.organ +
                      Köppen + Altitude + T_Mean, 
                      data = mun.join, family = "gaussian", bandwidth = gbwG, gweight = gwr.Gauss)
 
-#Pega os resultados
+#Pega os resultados (!!!! Trocar mun.join por mun !!!!)
 ggwrG.df<-as.data.frame(ggwrG$SDF)
-ggwrG.df$MUNICDV<-mun@data$MUNICDV
-ggwrG.mun<-merge(mun, ggwrG.df, by="MUNICDV", all=F)
-
+colnames(ggwrG.df)<-paste0("B_",colnames(ggwrG.df))
+ggwrG.df$CD_GEOCMU<-as.numeric(mun.join@data$CD_GEOCMU)
 
 #Plota o mapa
-ggwrG.df <- fortify(ggwrG, region="MUNICDV")
+sfn.df <- fortify(mun.join, region="CD_GEOCMU")
+sfn.df$CD_GEOCMU<-sfn.df$id
 
-gwr.point1<-ggplot(LondonWards, aes(x=x,y=y))+geom_point(aes(colour=LondonWards$coefUnauthAbsenceSchools11))+scale_colour_gradient2(low = "red", mid = "white", high = "blue", midpoint = 0, space = "rgb", na.value = "grey50", guide = "colourbar", guide_legend(title="Coefs"))
-gwr.point1+geom_path(data=boroughoutline,aes(long, lat, group=id), colour="grey")+coord_equal()
+#Merge 
+sfn.df<-merge(sfn.df,ggwrG.df,by="CD_GEOCMU",all.x=T)
 
-#Trasnforma o objeto espacial em um objeto que pode ser lido pelo ggplot2
-sfn.df <- fortify(sfn, region="CD_GEOCMU")
+#Escolhe as cores
+myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
 
+#Aumenta ou diminui a Bounding Box (aumenta em 1%)
+bbox <- ggmap::make_bbox(sfn.df$long, sfn.df$lat, f = 0.1)
+
+#Obtêm o mapa do Google Maps (Existem outras possibilidades...)
+map <- get_map(location=bbox, source='google', maptype = 'terrain', color='bw')
+
+#Constrói o mapa:
+map <- ggmap(map, base_layer=ggplot(data=sfn.df, aes(x=long, y=lat)), 
+             extent = "normal", maprange=FALSE)
+map <- map + geom_polygon(data=sfn.df,aes(x = long, y = lat, group = group, fill=B_Financiamento), alpha = .6)  
+map <- map +   geom_path(aes(x = long, y = lat, group = group),
+                         data = sfn.df, colour = "grey50", alpha = .7, size = .4, linetype=2)  
+map <- map + coord_equal() 
+map <- map + scale_fill_gradientn(colours = myPalette(4))
+map <-map +  ggtitle("Postos SINE") +  labs(x="Longitude",y="Latitude") 
