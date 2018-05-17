@@ -56,7 +56,7 @@ sfn.df <- fortify(mun.join, region="CD_GEOCMU")
 sfn.df$CD_GEOCMU<-sfn.df$id
 
 #Merge 
-sfn.df<-merge(sfn.df,ggwrG.df,by="CD_GEOCMU",all.x=T)
+sfn.df<-merge(sfn.df, ggwrG.df,by="CD_GEOCMU",all=T)
 
 #Escolhe as cores
 myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
@@ -75,4 +75,6 @@ map <- map +   geom_path(aes(x = long, y = lat, group = group),
                          data = sfn.df, colour = "grey50", alpha = .7, size = .4, linetype=2)  
 map <- map + coord_equal() 
 map <- map + scale_fill_gradientn(colours = myPalette(4))
-map <-map +  ggtitle("Postos SINE") +  labs(x="Longitude",y="Latitude") 
+map <-map +  ggtitle("Financiamento") +  labs(x="Longitude",y="Latitude")
+ggsave(filename = "B_Financiamento.png", map,
+       width = 10, height = 8, dpi = 150, units = "in", device='png')
